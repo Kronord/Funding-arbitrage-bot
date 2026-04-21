@@ -1,0 +1,16 @@
+{
+  "name": "funding-monitor",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w apps/server\" \"npm run dev -w apps/web\"",
+    "build": "npm run build -w apps/server && npm run build -w apps/web",
+    "start": "concurrently \"npm run start -w apps/server\" \"npm run start -w apps/web\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
