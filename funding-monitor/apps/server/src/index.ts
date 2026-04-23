@@ -1,30 +1,61 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
+import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+import passport from 'passport';
+import { apiLimiter } from './middleware/rateLimit';
 import fundingRouter from './routes/funding';
-import alertsRouter from './routes/alerts';
+import alertsRouter  from './routes/alerts';
+import authRouter    from './routes/auth';
+import { requireAuth } from './middleware/auth';
 import { startMonitor } from './jobs/monitor';
+import { cleanExpiredSessions } from './db/auth';
 
-dotenv.config();
-
-const app = express();
+const app  = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors({ origin: '*' }));
+// ── Security headers ──
+app.use(helmet());
+app.set('trust proxy', 1);
+// ── CORS ──
+app.use(cors({
+  origin: (origin, callback) => {
+    const allowed = [
+      process.env.FRONTEND_URL || 'http://localhost:3000',
+      'http://localhost:3000',
+    ];
+    // Дозволяємо Codespaces домени
+    if (!origin || allowed.includes(origin) || origin.includes('app.github.dev')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+}));
+
 app.use(express.json());
+app.use(cookieParser());
+app.use(passport.initialize());
 
-// ── Роутери ──
-app.use('/api/funding', fundingRouter);
-app.use('/api/alerts', alertsRouter);
+// ── Публічні роутери (без авторизації) ──
+app.use('/api/auth', authRouter);
 
-// ── Health check ──
-app.get('/api/health', (_, res) => {
-  res.json({ ok: true, ts: Date.now() });
+// ── Захищені роутери (потребують авторизації) ──
+app.use('/api/funding', requireAuth, apiLimiter, fundingRouter);
+app.use('/api/alerts',  requireAuth, alertsRouter);
+app.use('/api/settings', requireAuth, (req, res) => {
+  res.json({ ok: true, data: { orderSize: parseFloat(process.env.ORDER_SIZE_USDT || '100') } });
 });
 
-// ── Запуск монітора ──
+app.get('/api/health', (_, res) => res.json({ ok: true }));
+
+// ── Очищення сесій кожні 6 годин ──
+setInterval(() => {
+  cleanExpiredSessions().catch(console.error);
+}, 6 * 60 * 60 * 1000);
+
 startMonitor();
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 Server: http://localhost:${PORT}`));

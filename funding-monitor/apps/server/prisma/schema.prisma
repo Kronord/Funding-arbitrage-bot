@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model FundingSnapshot {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  orderSize Float
+  exchange  String   @default("kucoin")
+
+  pairs FundingPair[]
+
+  @@index([createdAt])
+}
+
+model FundingPair {
+  id              Int     @id @default(autoincrement())
+  snapshotId      Int
+  coin            String
+  exchange        String  @default("kucoin")
+  funding         Float
+  intervalHours   Float
+  nextFundingTs   BigInt?
+  nextFundingTime String?
+  minutesUntil    Int?
+  basisReal       Float
+  net             Float
+  avgSpotBuy      String
+  avgFutSell      String
+
+  snapshot FundingSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([coin])
+  @@index([snapshotId])
+}
+
+model FundingHistory {
+  id        Int      @id @default(autoincrement())
+  coin      String
+  exchange  String   @default("kucoin")
+  rate      Float
+  timepoint BigInt
+  timeStr   String
+  createdAt DateTime @default(now())
+
+  @@unique([coin, exchange, timepoint])
+  @@index([coin, exchange])
+  @@index([timepoint])
+}
+
+model Kline {
+  id          Int    @id @default(autoincrement())
+  coin        String
+  exchange    String @default("kucoin")
+  granularity Int
+  time        BigInt
+  open        Float
+  high        Float
+  low         Float
+  close       Float
+  volume      Float
+
+  @@unique([coin, exchange, granularity, time])
+  @@index([coin, exchange, granularity])
+}
+
+model ContractDetail {
+  id              Int      @id @default(autoincrement())
+  coin            String
+  exchange        String   @default("kucoin")
+  symbol          String
+  markPrice       Float
+  indexPrice      Float
+  funding         Float?
+  intervalHours   Float
+  nextFundingTs   BigInt?
+  nextFundingTime String?
+  minutesUntil    Int?
+  maxLeverage     Float?
+  takerFeeRate    Float?
+  makerFeeRate    Float?
+  openInterest    Float?
+  volume24h       Float?
+  turnover24h     Float?
+  asksJson        String
+  bidsJson        String
+  updatedAt       DateTime @updatedAt
+
+   @@unique([coin, exchange], name: "coin_exchange")
+  @@index([coin])
+}
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  passwordHash      String?   // null для OAuth юзерів
+  name              String?
+  avatarUrl         String?
+  googleId          String?   @unique
+  role              String    @default("user") // user | admin
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  sessions          Session[]
+  registrationMeta  RegistrationMeta?
+
+  @@index([email])
+  @@index([googleId])
+}
+
+model Session {
+  id                String    @id @default(cuid())
+  userId            String
+  refreshTokenHash  String    @unique
+  deviceFingerprint String?
+  ipAddress         String?
+  userAgent         String?
+  expiresAt         DateTime
+  createdAt         DateTime  @default(now())
+  revokedAt         DateTime? // null = активна
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([refreshTokenHash])
+  @@index([expiresAt])
+}
+
+model RegistrationMeta {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  ipHash      String   // хеш IP для приватності
+  userAgent   String?
+  country     String?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([ipHash])
+}
+
+model RegistrationAttempt {
+  id        String   @id @default(cuid())
+  ipHash    String
+  email     String
+  success   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([ipHash])
+  @@index([createdAt])
+}

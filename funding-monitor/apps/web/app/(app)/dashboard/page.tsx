@@ -1,4 +1,4 @@
-import FundingTable from '@/components/funding/FundingTable';
+import FundingTable from "@/components/funding/FundingTable";
 
 export default function DashboardPage() {
   return (

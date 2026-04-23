@@ -1,4 +1,7 @@
 {
-  "/(app)/coin/[symbol]/page": "app/(app)/coin/[symbol]/page.js",
-  "/(app)/dashboard/page": "app/(app)/dashboard/page.js"
+  "/_not-found/page": "app/_not-found/page.js",
+  "/(auth)/register/page": "app/(auth)/register/page.js",
+  "/(auth)/login/page": "app/(auth)/login/page.js",
+  "/(app)/dashboard/page": "app/(app)/dashboard/page.js",
+  "/(app)/profile/page": "app/(app)/profile/page.js"
 }

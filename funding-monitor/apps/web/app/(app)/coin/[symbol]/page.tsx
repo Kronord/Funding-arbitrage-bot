@@ -18,7 +18,7 @@ export default function CoinPage({
   const coin = useMemo(() => symbol?.toUpperCase() || "", [symbol]);
 
   const { data, loading, error } = useCoinDetails(coin);
-  if (!coin || coin === '[OBJECT PROMISE]') {
+  if (!coin || coin === "[OBJECT PROMISE]") {
     return <div className="animate-pulse h-10 bg-surface rounded" />;
   }
   if (loading) {
@@ -48,6 +48,21 @@ export default function CoinPage({
       </div>
     );
   }
+
+  if (error === 'not_found') {
+  return (
+    <div className="flex flex-col items-center justify-center h-64 text-text-muted font-mono">
+      <div className="text-4xl mb-4">⏳</div>
+      <div className="text-sm text-[#cdd9e5]">Монету {coin} ще немає в базі даних</div>
+      <p className="text-xs text-text-dim mt-2">
+        Дані з'являться після наступного циклу моніторингу (кожні 2 хвилини)
+      </p>
+      <Link href="/dashboard" className="mt-4 text-blue text-xs hover:underline">
+        ← Повернутись на дашборд
+      </Link>
+    </div>
+  );
+}
 
   return (
     <div className="space-y-5">

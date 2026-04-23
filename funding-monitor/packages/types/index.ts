@@ -1,5 +1,5 @@
 // ── Біржі ──
-export type Exchange = 'kucoin' | 'binance' | 'bybit';
+export type Exchange = "kucoin" | "binance" | "bybit";
 
 // ── Пара фандингу ──
 export interface FundingPair {
@@ -24,7 +24,11 @@ export interface FundingReport {
 }
 
 // ── Алерт ──
-export type AlertCondition = 'funding_gt' | 'funding_lt' | 'net_gt' | 'basis_gt';
+export type AlertCondition =
+  | "funding_gt"
+  | "funding_lt"
+  | "net_gt"
+  | "basis_gt";
 
 export interface Alert {
   id: string;

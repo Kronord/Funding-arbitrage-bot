@@ -1,8 +1,9 @@
 "use client";
 import { useState, useMemo } from "react";
-import { useFunding } from "@/lib/hooks/useFunding";
-import type { FundingPair } from "@funding-monitor/types";
 import Link from "next/link";
+import { useFunding } from "@/lib/hooks/useFunding";
+import CoinLoader from "./CoinLoader";
+import type { FundingPair } from "@funding-monitor/types";
 
 type SortKey = keyof Pick<
   FundingPair,
@@ -32,6 +33,7 @@ export default function FundingTable() {
   const { report, loading } = useFunding();
   const [sortKey, setSortKey] = useState<SortKey>("funding");
   const [sortDir, setSortDir] = useState<1 | -1>(-1);
+  const [loadingCoin, setLoadingCoin] = useState<string | null>(null);
 
   const sorted = useMemo(() => {
     if (!report?.pairs) return [];
@@ -76,6 +78,13 @@ export default function FundingTable() {
   }
 
   return (
+    <>
+    {loadingCoin && (
+        <CoinLoader
+          coin={loadingCoin}
+          onCancel={() => setLoadingCoin(null)}
+        />
+      )}
     <div className="border border-border-bright rounded-lg overflow-hidden overflow-x-auto">
       <table className="w-full border-collapse text-sm min-w-[860px]">
         <thead>
@@ -103,12 +112,12 @@ export default function FundingTable() {
                   {i + 1}
                 </td>
                 <td className="px-4 py-2.5">
-                  <Link
-                    href={`/coin/${p.coin}`}
-                    className="font-mono font-bold text-[14px] text-[#cdd9e5] hover:text-blue transition-colors"
+                  <button
+                    onClick={() => setLoadingCoin(p.coin)}
+                    className="font-mono font-bold text-[14px] text-[#cdd9e5] hover:text-blue transition-colors cursor-pointer"
                   >
                     {p.coin}
-                  </Link>
+                  </button>
                 </td>
                 <td className="px-4 py-2.5">
                   <Val v={p.funding} />
@@ -156,5 +165,6 @@ export default function FundingTable() {
         </tbody>
       </table>
     </div>
+    </>
   );
 }
