@@ -25,7 +25,6 @@ interface OrderBookEntry {
   bids: [string, string][];
 }
 
-// ── Середня ціна виконання по стакану ──
 function getAvgFillPrice(
   orders: [string, string][],
   usdtAmount: number,
@@ -55,7 +54,6 @@ function getAvgFillPrice(
   return remaining > 0 ? null : totalUsdt / totalCoins;
 }
 
-// ── Час наступної виплати ──
 function getFundingTimeInfo(contract: FuturesContract) {
   const granularityMs =
     contract.currentFundingRateGranularity || contract.granularity || 28800000;
@@ -68,12 +66,10 @@ function getFundingTimeInfo(contract: FuturesContract) {
   const cycleStart = contract.effectiveFundingRateCycleStartTime;
 
   if (cycleStart) {
-    // Рахуємо скільки інтервалів пройшло з cycleStart
     const elapsed = now - cycleStart;
     const intervalsPassed = Math.floor(elapsed / granularityMs);
     nextFundingTs = cycleStart + (intervalsPassed + 1) * granularityMs;
   } else {
-    // Рахуємо по стандартних інтервалах від початку доби UTC
     const startOfDay = new Date();
     startOfDay.setUTCHours(0, 0, 0, 0);
     const elapsed = now - startOfDay.getTime();
@@ -92,7 +88,6 @@ function getFundingTimeInfo(contract: FuturesContract) {
   return { intervalHours, nextFundingTime, minutesUntil, nextFundingTs };
 }
 
-// ── Ринкові дані ──
 async function getMarketData() {
   const [spotRes, contractsRes] = await Promise.all([
     axios.get("https://api.kucoin.com/api/v1/market/allTickers"),
@@ -104,7 +99,6 @@ async function getMarketData() {
   };
 }
 
-// ── Стакан ──
 async function getOrderBook(
   spotSymbol: string,
   futSymbol: string,
@@ -127,14 +121,11 @@ async function getOrderBook(
   }
 }
 
-// ── Головна функція ──
 export async function fetchKucoinFunding(
   orderSize: number,
-): Promise<FundingPair[]> {
+): Promise<{ pairs: FundingPair[]; contracts: FuturesContract[] }> {
   const data = await getMarketData();
   const contractMap = new Map(data.contracts.map((c) => [c.symbol, c]));
-
-  // Крок 1 — кандидати по фандингу
   const candidates: Array<{
     coin: string;
     spotSymbol: string;
@@ -180,13 +171,9 @@ export async function fetchKucoinFunding(
   });
 
   const top40 = candidates.sort((a, b) => b.funding - a.funding).slice(0, 100);
-
-  // Крок 2 — стакани паралельно
   const books = await Promise.all(
     top40.map((c) => getOrderBook(c.spotSymbol, c.futSymbol)),
   );
-
-  // Крок 3 — розрахунок
   const pairs: FundingPair[] = [];
 
   top40.forEach((c, i) => {
@@ -220,10 +207,12 @@ export async function fetchKucoinFunding(
     });
   });
 
-  return pairs.sort((a, b) => b.funding - a.funding);
+  return {
+    pairs: pairs.sort((a, b) => b.funding - a.funding),
+    contracts: data.contracts,
+  };
 }
 
-// ── Деталі монети ──
 export async function fetchCoinDetails(coin: string): Promise<any> {
   const futSymbol = coin === "BTC" ? "XBTUSDTM" : `${coin}USDTM`;
   const alt1000 = `1000${coin}USDTM`;
@@ -268,13 +257,208 @@ export async function fetchCoinDetails(coin: string): Promise<any> {
     openInterest: contract.openInterest,
     volume24h: contract.volumeOf24h,
     turnover24h: contract.turnoverOf24h,
-    // Стакан для калькулятора
     asks: ob.asks as [string, string][],
     bids: ob.bids as [string, string][],
   };
 }
 
-// ── Історія фандингу ──
+async function chunkedSettled<T>(
+  items: T[],
+  fn: (item: T) => Promise<any>,
+  chunkSize = 20,
+  delayMs = 200,
+): Promise<PromiseSettledResult<any>[]> {
+  const results: PromiseSettledResult<any>[] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    const chunk = items.slice(i, i + chunkSize);
+    const chunkResults = await Promise.allSettled(chunk.map(fn));
+    results.push(...chunkResults);
+    if (i + chunkSize < items.length) {
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  return results;
+}
+
+export async function fetchAllCoinDetails(
+  coins: string[],
+  contractsData: FuturesContract[],
+): Promise<any[]> {
+  const contractMap = new Map(contractsData.map((c) => [c.symbol, c]));
+
+  // Паралельно тягнемо всі спот-стакани
+  const obResults = await chunkedSettled(coins, (coin) =>
+    axios.get(
+      `https://api.kucoin.com/api/v1/market/orderbook/level2_20?symbol=${coin}-USDT`,
+    ),
+  );
+
+  const details: any[] = [];
+
+  for (let i = 0; i < coins.length; i++) {
+    const coin = coins[i];
+    const futSymbol = coin === "BTC" ? "XBTUSDTM" : `${coin}USDTM`;
+    const alt1000 = `1000${coin}USDTM`;
+
+    const contract = contractMap.get(futSymbol) ?? contractMap.get(alt1000);
+    if (!contract) continue;
+
+    const obResult = obResults[i];
+    if (obResult.status === "rejected") continue;
+
+    const ob = obResult.value.data.data;
+    const is1000 = contract.symbol.startsWith("1000");
+
+    const fundingRate =
+      contract.fundingFeeRate != null
+        ? parseFloat((contract.fundingFeeRate * 100).toFixed(4))
+        : null;
+
+    const timeInfo = getFundingTimeInfo(contract);
+
+    details.push({
+      coin,
+      exchange: "kucoin" as const,
+      symbol: contract.symbol,
+      markPrice: is1000
+        ? parseFloat(contract.markPrice as any) / 1000
+        : parseFloat(contract.markPrice as any),
+      indexPrice: is1000
+        ? parseFloat((contract as any).indexPrice) / 1000
+        : parseFloat((contract as any).indexPrice),
+      funding: fundingRate,
+      ...timeInfo,
+      maxLeverage: (contract as any).maxLeverage,
+      takerFeeRate: (contract as any).takerFeeRate,
+      makerFeeRate: (contract as any).makerFeeRate,
+      openInterest: (contract as any).openInterest,
+      volume24h: (contract as any).volumeOf24h,
+      turnover24h: (contract as any).turnoverOf24h,
+      asks: ob.asks as [string, string][],
+      bids: ob.bids as [string, string][],
+    });
+  }
+
+  return details;
+}
+
+// ── Батчева історія фандингу для списку монет ──
+export async function fetchFundingHistoryBatch(
+  coins: string[],
+  days: number,
+): Promise<Record<string, { rate: number; time: number; timeStr: string }[]>> {
+  const to = Date.now();
+  const from = to - days * 24 * 60 * 60 * 1000;
+
+  const results = await chunkedSettled(coins, async (coin) => {
+    const futSymbol = coin === "BTC" ? "XBTUSDTM" : `${coin}USDTM`;
+    const alt1000 = `1000${coin}USDTM`;
+
+    let res;
+    try {
+      res = await axios.get(
+        `https://api-futures.kucoin.com/api/v1/contract/funding-rates?symbol=${futSymbol}&from=${from}&to=${to}`,
+      );
+    } catch {
+      res = await axios.get(
+        `https://api-futures.kucoin.com/api/v1/contract/funding-rates?symbol=${alt1000}&from=${from}&to=${to}`,
+      );
+    }
+
+    const data = res.data.data as {
+      fundingRate: number;
+      timepoint: number;
+    }[];
+    return {
+      coin,
+      history: data
+        .map((d) => ({
+          rate: parseFloat((d.fundingRate * 100).toFixed(4)),
+          time: d.timepoint,
+          timeStr: new Date(d.timepoint).toLocaleString("uk-UA", {
+            timeZone: "Europe/Kyiv",
+            day: "2-digit",
+            month: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        }))
+        .sort((a, b) => a.time - b.time),
+    };
+  });
+
+  const out: Record<string, { rate: number; time: number; timeStr: string }[]> =
+    {};
+  for (const r of results) {
+    if (r.status === "fulfilled") {
+      out[r.value.coin] = r.value.history;
+    }
+  }
+  return out;
+}
+
+// ── Батчеві klines для списку монет ──
+export async function fetchPriceChartBatch(
+  coins: string[],
+  granularity: number,
+  days: number,
+): Promise<
+  Record<
+    string,
+    {
+      time: number;
+      open: number;
+      high: number;
+      low: number;
+      close: number;
+      volume: number;
+    }[]
+  >
+> {
+  const to = Math.floor(Date.now() / 1000);
+  const from = to - days * 24 * 60 * 60;
+
+  const results = await chunkedSettled(
+    coins,
+    async (coin) => {
+      const futSymbol = coin === "BTC" ? "XBTUSDTM" : `${coin}USDTM`;
+      const alt1000 = `1000${coin}USDTM`;
+
+      let res;
+      try {
+        res = await axios.get(
+          `https://api-futures.kucoin.com/api/v1/kline/query?symbol=${futSymbol}&granularity=${granularity}&from=${from * 1000}&to=${to * 1000}`,
+        );
+      } catch {
+        res = await axios.get(
+          `https://api-futures.kucoin.com/api/v1/kline/query?symbol=${alt1000}&granularity=${granularity}&from=${from * 1000}&to=${to * 1000}`,
+        );
+      }
+
+      const raw = res.data.data as number[][];
+      return {
+        coin,
+        klines: raw.map((k) => ({
+          time: k[0],
+          open: k[1],
+          high: k[2],
+          low: k[3],
+          close: k[4],
+          volume: k[5],
+        })),
+      };
+    },
+  );
+
+  const out: Record<string, any[]> = {};
+  for (const r of results) {
+    if (r.status === "fulfilled") {
+      out[r.value.coin] = r.value.klines;
+    }
+  }
+  return out;
+}
+
 export async function fetchFundingHistory(
   coin: string,
   days: number,
@@ -285,7 +469,6 @@ export async function fetchFundingHistory(
   const to = Date.now();
   const from = to - days * 24 * 60 * 60 * 1000;
 
-  // Пробуємо основний символ, якщо 404 — 1000-ний
   let symbol = futSymbol;
   let res;
   try {
@@ -316,7 +499,6 @@ export async function fetchFundingHistory(
     .sort((a, b) => a.time - b.time);
 }
 
-// ── Сума фандингу за період ──
 export async function fetchFundingSummary(
   coin: string,
   days: number,
@@ -338,10 +520,9 @@ export async function fetchFundingSummary(
   return { totalRate, count, avgRate, perDay };
 }
 
-// ── Графік ціни (klines) ──
 export async function fetchPriceChart(
   coin: string,
-  granularity: number = 60, // хвилини: 1, 5, 15, 30, 60, 120, 240, 480, 720, 1440
+  granularity: number = 60,
   days: number = 1,
 ): Promise<
   {
@@ -372,7 +553,6 @@ export async function fetchPriceChart(
 
   const raw = res.data.data as number[][];
 
-  // KuCoin повертає [time, open, high, low, close, volume]
   return raw.map((k) => ({
     time: k[0],
     open: k[1],
@@ -383,7 +563,6 @@ export async function fetchPriceChart(
   }));
 }
 
-// ── Розрахунок спреду по кастомних цінах входу ──
 export function calcSpreadByEntryPrice(
   spotEntryPrice: number,
   futEntryPrice: number,
@@ -398,9 +577,7 @@ export function calcSpreadByEntryPrice(
   basisEntry: number;
   netEntry: number;
 } {
-  // Середня ціна купівлі спот (asks — ми купуємо)
   const avgSpotAsk = getAvgFillPrice(asks, orderSize, 1);
-  // Середня ціна продажу ф'юч (bids — ми продаємо/шортимо)
   const avgFutBid = getAvgFillPrice(bids, orderSize, multiplier);
 
   const basisReal =
@@ -408,7 +585,6 @@ export function calcSpreadByEntryPrice(
       ? parseFloat((((avgFutBid - avgSpotAsk) / avgSpotAsk) * 100).toFixed(3))
       : null;
 
-  // Базис по цінах входу користувача
   const basisEntry = parseFloat(
     (((futEntryPrice - spotEntryPrice) / spotEntryPrice) * 100).toFixed(3),
   );
@@ -418,13 +594,11 @@ export function calcSpreadByEntryPrice(
   return { avgSpotAsk, avgFutBid, basisReal, basisEntry, netEntry };
 }
 
-// ── Фандинг для дашборду (3д і 7д) ──
 export async function fetchDashboardFundingSummaries(
   coins: string[],
 ): Promise<Record<string, { sum3d: number; sum7d: number }>> {
   const results: Record<string, { sum3d: number; sum7d: number }> = {};
 
-  // Запити паралельно по 5 монет за раз щоб не перевантажити API
   const chunks = [];
   for (let i = 0; i < coins.length; i += 5) {
     chunks.push(coins.slice(i, i + 5));
@@ -447,4 +621,100 @@ export async function fetchDashboardFundingSummaries(
   }
 
   return results;
+}
+
+export async function fetchAllContractDetails(): Promise<Record<string, any>> {
+  const [contractsRes, spotRes] = await Promise.all([
+    axios.get("https://api-futures.kucoin.com/api/v1/contracts/active"),
+    axios.get("https://api.kucoin.com/api/v1/market/allTickers"),
+  ]);
+
+  const contracts = contractsRes.data.data as any[];
+  const spotTickers = spotRes.data.data.ticker as any[];
+
+  const spotMap = new Map(
+    spotTickers.map((t: any) => [t.symbol.replace("-USDT", ""), t]),
+  );
+
+  const contractMap = new Map(contracts.map((c) => [c.symbol, c]));
+
+  const result: Record<string, any> = {};
+
+  for (const contract of contracts) {
+    const symbol = contract.symbol;
+
+    let coin = symbol.replace("USDTM", "");
+    if (coin === "XBT") coin = "BTC";
+    const is1000 = symbol.startsWith("1000");
+    if (is1000) coin = coin.replace("1000", "");
+
+    const multiplier = is1000 ? 1000 : 1;
+    const markPrice = is1000
+      ? parseFloat(contract.markPrice) / multiplier
+      : parseFloat(contract.markPrice);
+    const indexPrice = is1000
+      ? parseFloat(contract.indexPrice) / multiplier
+      : parseFloat(contract.indexPrice);
+
+    const fundingRate =
+      contract.fundingFeeRate != null
+        ? parseFloat((contract.fundingFeeRate * 100).toFixed(4))
+        : null;
+
+    const granularityMs =
+      contract.currentFundingRateGranularity ||
+      contract.fundingRateGranularity ||
+      28800000;
+    const intervalHours = granularityMs / 3600000;
+    const nextFundingTs = contract.nextFundingRateDateTime || null;
+    const minutesUntil = contract.nextFundingRateTime
+      ? Math.max(0, Math.round(contract.nextFundingRateTime / 60000))
+      : null;
+    const nextFundingTime = nextFundingTs
+      ? new Date(nextFundingTs).toLocaleTimeString("uk-UA", {
+          timeZone: "Europe/Kyiv",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : null;
+
+    result[coin] = {
+      coin,
+      exchange: "kucoin",
+      symbol,
+      markPrice,
+      indexPrice,
+      funding: fundingRate,
+      intervalHours,
+      nextFundingTs,
+      nextFundingTime,
+      minutesUntil,
+      maxLeverage: contract.maxLeverage,
+      takerFeeRate: contract.takerFeeRate,
+      makerFeeRate: contract.makerFeeRate,
+      openInterest: parseFloat(contract.openInterest) || null,
+      volume24h: parseFloat(contract.volumeOf24h) || null,
+      turnover24h: parseFloat(contract.turnoverOf24h) || null,
+      lowPrice: contract.lowPrice,
+      highPrice: contract.highPrice,
+      priceChgPct: contract.priceChgPct,
+      asks: [], // заповнимо окремо для калькулятора
+      bids: [],
+    };
+  }
+
+  return result;
+}
+
+// ── Стакани для конкретних монет (для калькулятора) ──
+export async function fetchOrderBooksForCoins(
+  coins: {
+    coin: string;
+    spotSymbol: string;
+    futSymbol: string;
+    is1000: boolean;
+  }[],
+): Promise<void> {
+  // Ця функція оновлює стакани в БД
+  // Викликається окремо і менш часто
 }

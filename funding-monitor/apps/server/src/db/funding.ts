@@ -68,7 +68,9 @@ export async function saveContractDetail(coin: string, details: any) {
     indexPrice: parseFloat(details.indexPrice) || 0,
     funding: details.funding != null ? parseFloat(details.funding) : null,
     intervalHours: parseFloat(details.intervalHours) || 0,
-    nextFundingTs: details.nextFundingTs ? BigInt(details.nextFundingTs) : null,
+    nextFundingTs: details.nextFundingTs
+      ? BigInt(Math.round(details.nextFundingTs))
+      : null,
     nextFundingTime: details.nextFundingTime ?? null,
     minutesUntil: details.minutesUntil ? parseInt(details.minutesUntil) : null,
     maxLeverage: details.maxLeverage ? parseFloat(details.maxLeverage) : null,
@@ -83,8 +85,8 @@ export async function saveContractDetail(coin: string, details: any) {
       : null,
     volume24h: details.volume24h ? parseFloat(details.volume24h) : null,
     turnover24h: details.turnover24h ? parseFloat(details.turnover24h) : null,
-    asksJson: JSON.stringify(details.asks),
-    bidsJson: JSON.stringify(details.bids),
+    asksJson: JSON.stringify(details.asks || []),
+    bidsJson: JSON.stringify(details.bids || []),
   };
 
   return prisma.contractDetail.upsert({
@@ -114,28 +116,35 @@ export async function saveFundingHistory(
   coin: string,
   history: { rate: number; time: number; timeStr: string }[],
 ) {
-  // upsert кожного запису — не дублюємо якщо вже є
-  await Promise.all(
-    history.map((h) =>
-      prisma.fundingHistory.upsert({
-        where: {
-          coin_exchange_timepoint: {
-            coin,
-            exchange: "kucoin",
-            timepoint: BigInt(h.time),
-          },
-        },
-        update: {},
-        create: {
-          coin,
-          exchange: "kucoin",
-          rate: h.rate,
-          timepoint: BigInt(h.time),
-          timeStr: h.timeStr,
-        },
-      }),
-    ),
+  if (!history.length) return;
+  // createMany з skipDuplicates замість N окремих upsert
+  await prisma.fundingHistory.createMany({
+    data: history.map((h) => ({
+      coin,
+      exchange: "kucoin",
+      rate: h.rate,
+      timepoint: BigInt(h.time),
+      timeStr: h.timeStr,
+    })),
+    skipDuplicates: true,
+  });
+}
+
+// ── Зберегти історію фандингу для багатьох монет одним запитом ──
+export async function saveFundingHistoryBatch(
+  batch: Record<string, { rate: number; time: number; timeStr: string }[]>,
+) {
+  const rows = Object.entries(batch).flatMap(([coin, history]) =>
+    history.map((h) => ({
+      coin,
+      exchange: "kucoin",
+      rate: h.rate,
+      timepoint: BigInt(h.time),
+      timeStr: h.timeStr,
+    })),
   );
+  if (!rows.length) return;
+  await prisma.fundingHistory.createMany({ data: rows, skipDuplicates: true });
 }
 
 // ── Отримати історію фандингу з БД ──
@@ -171,37 +180,60 @@ export async function saveKlines(
     volume: number;
   }[],
 ) {
+  if (!klines.length) return;
+  await prisma.kline.createMany({
+    data: klines.map((k) => ({
+      coin,
+      exchange: "kucoin",
+      granularity,
+      time: BigInt(k.time),
+      open: k.open,
+      high: k.high,
+      low: k.low,
+      close: k.close,
+      volume: k.volume,
+    })),
+    skipDuplicates: true,
+  });
+}
+
+// ── Зберегти klines для багатьох монет одним запитом ──
+export async function saveKlinesBatch(
+  batch: Record<
+    string,
+    {
+      time: number;
+      open: number;
+      high: number;
+      low: number;
+      close: number;
+      volume: number;
+    }[]
+  >,
+  granularity: number,
+) {
+  const rows = Object.entries(batch).flatMap(([coin, klines]) =>
+    klines.map((k) => ({
+      coin,
+      exchange: "kucoin",
+      granularity,
+      time: BigInt(k.time),
+      open: k.open,
+      high: k.high,
+      low: k.low,
+      close: k.close,
+      volume: k.volume,
+    })),
+  );
+  if (!rows.length) return;
+  await prisma.kline.createMany({ data: rows, skipDuplicates: true });
+}
+
+// ── Зберегти деталі контрактів для багатьох монет ──
+export async function saveContractDetailsBatch(detailsList: any[]) {
+  // Prisma не підтримує upsertMany, тому паралельно але без затримок між монетами
   await Promise.all(
-    klines.map((k) =>
-      prisma.kline.upsert({
-        where: {
-          coin_exchange_granularity_time: {
-            coin,
-            exchange: "kucoin",
-            granularity,
-            time: BigInt(k.time),
-          },
-        },
-        update: {
-          open: k.open,
-          high: k.high,
-          low: k.low,
-          close: k.close,
-          volume: k.volume,
-        },
-        create: {
-          coin,
-          exchange: "kucoin",
-          granularity,
-          time: BigInt(k.time),
-          open: k.open,
-          high: k.high,
-          low: k.low,
-          close: k.close,
-          volume: k.volume,
-        },
-      }),
-    ),
+    detailsList.map((details) => saveContractDetail(details.coin, details)),
   );
 }
 
