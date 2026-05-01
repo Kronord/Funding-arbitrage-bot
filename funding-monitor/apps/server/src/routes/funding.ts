@@ -5,8 +5,11 @@ import {
   getContractDetail,
   getFundingHistory,
   getKlines,
+  saveContractDetail,
+  saveFundingHistory,
+  saveKlines,
 } from "../db/funding";
-import { calcSpreadByEntryPrice } from "../services/kucoin";
+import { calcSpreadByEntryPrice, fetchCoinDetails, fetchFundingHistory, fetchPriceChart } from "../services/kucoin";
 
 const router = Router();
 
@@ -62,7 +65,15 @@ router.get("/summaries", async (req, res) => {
 router.get("/:coin", async (req, res) => {
   try {
     const coin = req.params.coin.toUpperCase();
-    const detail = await getContractDetail(coin);
+    let detail = await getContractDetail(coin);
+      // Монета ще не в БД — тягнемо з біржі і зберігаємо
+      try {
+        const fetched = await fetchCoinDetails(coin);
+        await saveContractDetail(coin, fetched);
+        detail = await getContractDetail(coin);
+      } catch {
+        return res.status(404).json({ ok: false, error: `Монету ${coin} не знайдено` });
+      }
 
     if (!detail) {
       return res
@@ -156,38 +167,60 @@ router.post("/:coin/calc", async (req, res) => {
 });
 
 // ── GET /api/funding/:coin/full ── всі дані одним запитом
-router.get('/:coin/full', async (req, res) => {
+router.get("/:coin/full", async (req, res) => {
   try {
-    const coin        = req.params.coin.toUpperCase();
-    const historyDays = parseInt(String(req.query.historyDays || '7'));
-    const chartGran   = parseInt(String(req.query.granularity  || '60'));
-    const chartDays   = parseInt(String(req.query.chartDays    || '7'));
+    const coin = req.params.coin.toUpperCase();
+    const historyDays = parseInt(String(req.query.historyDays || "7"));
+    const chartGran = parseInt(String(req.query.granularity || "60"));
+    const chartDays = parseInt(String(req.query.chartDays || "7"));
 
     // Всі запити до БД паралельно
-    const [detail, history, klines] = await Promise.all([
+    let [detail, history, klines] = await Promise.all([
       getContractDetail(coin),
       getFundingHistory(coin, historyDays),
       getKlines(coin, chartGran, chartDays),
     ]);
 
-    if (!detail) {
-      return res.status(404).json({ ok: false, error: `Монету ${coin} не знайдено` });
+    if (!detail || history.length === 0 || klines.length === 0) {
+      try {
+        const [fetchedDetail, fetchedHistory, fetchedKlines] = await Promise.all([
+          !detail ? fetchCoinDetails(coin) : Promise.resolve(null),
+          history.length === 0 ? fetchFundingHistory(coin, historyDays) : Promise.resolve(null),
+          klines.length === 0 ? fetchPriceChart(coin, chartGran, chartDays) : Promise.resolve(null),
+        ]);
+
+        await Promise.all([
+          fetchedDetail   ? saveContractDetail(coin, fetchedDetail) : Promise.resolve(),
+          fetchedHistory  ? saveFundingHistory(coin, fetchedHistory) : Promise.resolve(),
+          fetchedKlines   ? saveKlines(coin, chartGran, fetchedKlines) : Promise.resolve(),
+        ]);
+
+        // Перечитуємо з БД після збереження
+        [detail, history, klines] = await Promise.all([
+          getContractDetail(coin),
+          getFundingHistory(coin, historyDays),
+          getKlines(coin, chartGran, chartDays),
+        ]);
+      } catch (fetchErr) {
+        if (!detail) {
+          return res.status(404).json({ ok: false, error: `Монету ${coin} не знайдено` });
+        }
+      }
     }
 
     // Розрахунок summary з history
-    const totalRate = parseFloat(history.reduce((s, h) => s + h.rate, 0).toFixed(4));
-    const count     = history.length;
-    const summary   = {
+    const totalRate = parseFloat(
+      history.reduce((s, h) => s + h.rate, 0).toFixed(4),
+    );
+    const count = history.length;
+    const summary = {
       totalRate,
       count,
-      avgRate:  count > 0 ? parseFloat((totalRate / count).toFixed(4)) : 0,
-      perDay:   parseFloat((totalRate / Math.max(historyDays, 1)).toFixed(4)),
+      avgRate: count > 0 ? parseFloat((totalRate / count).toFixed(4)) : 0,
+      perDay: parseFloat((totalRate / Math.max(historyDays, 1)).toFixed(4)),
     };
 
-    res.json({
-      ok: true,
-      data: { detail, history, klines, summary },
-    });
+    res.json({ ok: true, data: { detail, history, klines, summary } });
   } catch (e: any) {
     res.status(500).json({ ok: false, error: e.message });
   }

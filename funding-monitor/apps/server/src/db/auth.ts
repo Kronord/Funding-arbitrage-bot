@@ -1,7 +1,6 @@
-import prisma from './client';
-import { hashToken, hashIp } from '../services/jwt';
-import bcrypt from 'bcryptjs';
-
+import prisma from "./client";
+import { hashToken, hashIp } from "../services/jwt";
+import bcrypt from "bcryptjs";
 
 // ── Створити юзера ──
 export async function createUser(data: {
@@ -19,17 +18,19 @@ export async function createUser(data: {
 
   const user = await prisma.user.create({
     data: {
-      email:        data.email.toLowerCase().trim(),
+      email: data.email.toLowerCase().trim(),
       passwordHash,
-      name:         data.name,
-      avatarUrl:    data.avatarUrl,
-      googleId:     data.googleId,
-      registrationMeta: data.ip ? {
-        create: {
-          ipHash:    hashIp(data.ip),
-          userAgent: data.userAgent,
-        }
-      } : undefined,
+      name: data.name,
+      avatarUrl: data.avatarUrl,
+      googleId: data.googleId,
+      registrationMeta: data.ip
+        ? {
+            create: {
+              ipHash: hashIp(data.ip),
+              userAgent: data.userAgent,
+            },
+          }
+        : undefined,
     },
   });
 
@@ -37,8 +38,8 @@ export async function createUser(data: {
   if (data.ip) {
     await prisma.registrationAttempt.create({
       data: {
-        ipHash:  hashIp(data.ip),
-        email:   data.email.toLowerCase(),
+        ipHash: hashIp(data.ip),
+        email: data.email.toLowerCase(),
         success: true,
       },
     });
@@ -65,26 +66,29 @@ export async function findUserById(id: string) {
 }
 
 // ── Верифікація пароля ──
-export async function verifyPassword(plain: string, hash: string): Promise<boolean> {
+export async function verifyPassword(
+  plain: string,
+  hash: string,
+): Promise<boolean> {
   return bcrypt.compare(plain, hash);
 }
 
 // ── Створити сесію ──
 export async function createSession(data: {
-  userId:       string;
+  userId: string;
   refreshToken: string;
-  ip?:          string;
-  userAgent?:   string;
+  ip?: string;
+  userAgent?: string;
 }) {
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30);
 
-  const crypto = require('crypto');
+  const crypto = require("crypto");
   const deviceFingerprint = data.userAgent
     ? crypto
-        .createHash('sha256')
-        .update(data.userAgent + (data.ip || ''))
-        .digest('hex')
+        .createHash("sha256")
+        .update(data.userAgent + (data.ip || ""))
+        .digest("hex")
         .slice(0, 16)
     : null;
 
@@ -92,21 +96,21 @@ export async function createSession(data: {
 
   // upsert щоб уникнути дублікатів
   return prisma.session.upsert({
-    where:  { refreshTokenHash },
+    where: { refreshTokenHash },
     update: {
-      userId:           data.userId,
+      userId: data.userId,
       deviceFingerprint,
-      ipAddress:        data.ip,
-      userAgent:        data.userAgent,
+      ipAddress: data.ip,
+      userAgent: data.userAgent,
       expiresAt,
-      revokedAt:        null,
+      revokedAt: null,
     },
     create: {
-      userId:           data.userId,
+      userId: data.userId,
       refreshTokenHash,
       deviceFingerprint,
-      ipAddress:        data.ip,
-      userAgent:        data.userAgent,
+      ipAddress: data.ip,
+      userAgent: data.userAgent,
       expiresAt,
     },
   });
@@ -117,8 +121,8 @@ export async function findActiveSession(refreshToken: string) {
   return prisma.session.findFirst({
     where: {
       refreshTokenHash: hashToken(refreshToken),
-      revokedAt:        null,
-      expiresAt:        { gt: new Date() },
+      revokedAt: null,
+      expiresAt: { gt: new Date() },
     },
     include: { user: true },
   });
@@ -128,7 +132,7 @@ export async function findActiveSession(refreshToken: string) {
 export async function revokeSession(refreshToken: string) {
   return prisma.session.updateMany({
     where: { refreshTokenHash: hashToken(refreshToken) },
-    data:  { revokedAt: new Date() },
+    data: { revokedAt: new Date() },
   });
 }
 
@@ -136,25 +140,25 @@ export async function revokeSession(refreshToken: string) {
 export async function revokeAllUserSessions(userId: string) {
   return prisma.session.updateMany({
     where: { userId, revokedAt: null },
-    data:  { revokedAt: new Date() },
+    data: { revokedAt: new Date() },
   });
 }
 
 // ── Перевірка rate limit реєстрацій з одного IP ──
 export async function checkRegistrationRateLimit(ip: string): Promise<{
   allowed: boolean;
-  count:   number;
-  limit:   number;
+  count: number;
+  limit: number;
 }> {
-  const limit   = parseInt(process.env.MAX_REGISTRATIONS_PER_IP || '3');
-  const hours   = parseInt(process.env.REGISTRATION_WINDOW_HOURS || '24');
-  const ipHash  = hashIp(ip);
-  const since   = new Date(Date.now() - hours * 60 * 60 * 1000);
+  const limit = parseInt(process.env.MAX_REGISTRATIONS_PER_IP || "3");
+  const hours = parseInt(process.env.REGISTRATION_WINDOW_HOURS || "24");
+  const ipHash = hashIp(ip);
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000);
 
   const count = await prisma.registrationAttempt.count({
     where: {
       ipHash,
-      success:   true,
+      success: true,
       createdAt: { gte: since },
     },
   });

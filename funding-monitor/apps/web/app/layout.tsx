@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/lib/auth/AuthContext';
+import NavigationProgress from '@/components/ui/NavigationProgress';
 
 export const metadata: Metadata = {
   title: 'Funding Monitor',
@@ -19,6 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="bg-bg text-[#cdd9e5] font-sans antialiased">
         <AuthProvider>
+          <NavigationProgress />
           {children}
         </AuthProvider>
       </body>

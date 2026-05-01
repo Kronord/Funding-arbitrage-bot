@@ -1,6 +1,6 @@
-import AuthGuard from '@/components/auth/AuthGuard';
-import Sidebar   from '@/components/ui/Sidebar';
-import Header    from '@/components/ui/Header';
+import AuthGuard  from '@/components/auth/AuthGuard';
+import Sidebar    from '@/components/ui/Sidebar';
+import Header     from '@/components/ui/Header';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (

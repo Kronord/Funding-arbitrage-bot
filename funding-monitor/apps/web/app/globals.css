@@ -12,3 +12,13 @@ body {
   background: #080c10;
   min-height: 100vh;
 }
+
+@keyframes pageload {
+  0%   { width: 0%;   opacity: 1; }
+  70%  { width: 80%;  opacity: 1; }
+  100% { width: 100%; opacity: 0; }
+}
+
+.animate-pageload {
+  animation: pageload 5s ease-out forwards;
+}
