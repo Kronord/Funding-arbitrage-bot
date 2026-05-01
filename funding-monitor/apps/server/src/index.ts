@@ -13,7 +13,7 @@ import { startMonitor } from "./jobs/monitor";
 import { cleanExpiredSessions } from "./db/auth";
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 3001;
 
 // ── Security headers ──
 app.use(helmet());
