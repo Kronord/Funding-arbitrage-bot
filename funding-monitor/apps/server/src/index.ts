@@ -70,4 +70,4 @@ setInterval(
 
 startMonitor();
 
-app.listen(PORT, () => console.log(`🚀 Server: http://localhost:${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server: http://localhost:${PORT}`));
