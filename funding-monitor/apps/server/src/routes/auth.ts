@@ -189,7 +189,7 @@ router.post("/login", loginLimiter, async (req: Request, res: Response) => {
 // ════════════════════════════════════════
 router.post("/refresh", async (req: Request, res: Response) => {
   try {
-    const refreshToken = req.cookies?.refreshToken;
+    const refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
     if (!refreshToken) {
       return res
         .status(401)
@@ -243,7 +243,7 @@ router.post("/refresh", async (req: Request, res: Response) => {
 // POST /api/auth/logout
 // ════════════════════════════════════════
 router.post("/logout", async (req: Request, res: Response) => {
-  const refreshToken = req.cookies?.refreshToken;
+   const refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
   if (refreshToken) {
     await revokeSession(refreshToken).catch(console.error);
   }

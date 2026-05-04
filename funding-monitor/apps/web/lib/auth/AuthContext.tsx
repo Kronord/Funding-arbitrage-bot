@@ -85,30 +85,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ── Оновити токен ──
   const refreshToken = useCallback(async (): Promise<boolean> => {
-    try {
-      const storedRefresh = typeof window !== 'undefined'
-        ? localStorage.getItem(REFRESH_TOKEN_KEY)
-        : null;
-      if (!storedRefresh) return false;
+  try {
+    const storedRefresh = typeof window !== 'undefined'
+      ? localStorage.getItem(REFRESH_TOKEN_KEY)
+      : null;
 
-      const res = await fetch(`${getApiUrl()}/api/auth/refresh`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ refreshToken: storedRefresh }),
-      });
+    console.log('Refresh token з localStorage:', storedRefresh ? 'є' : 'немає');
 
-      if (!res.ok) { clearTokens(); return false; }
+    if (!storedRefresh) return false;
 
-      const json = await res.json();
-      if (json.ok && json.data?.accessToken && json.data?.refreshToken) {
-        saveTokens(json.data.accessToken, json.data.refreshToken);
-        await fetchMe(json.data.accessToken);
-        return true;
-      }
-    } catch {}
+    const res = await fetch(`${getApiUrl()}/api/auth/refresh`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // ── Передаємо в body ──
+      body: JSON.stringify({ refreshToken: storedRefresh }),
+    });
+
+    const json = await res.json();
+    console.log('Refresh відповідь:', json);
+
+    if (json.ok && json.data?.accessToken && json.data?.refreshToken) {
+      saveTokens(json.data.accessToken, json.data.refreshToken);
+      await fetchMe(json.data.accessToken);
+      return true;
+    }
+
     clearTokens();
     return false;
-  }, [fetchMe]);
+  } catch (e) {
+    console.error('Refresh error:', e);
+    return false;
+  }
+}, [fetchMe]);
 
   // ── Ініціалізація ──
   useEffect(() => {
