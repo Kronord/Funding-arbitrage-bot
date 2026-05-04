@@ -29,11 +29,23 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
+const REFRESH_TOKEN_KEY = 'fm_refresh_token';
+const ACCESS_TOKEN_KEY  = 'fm_access_token';
+
+// ── Перевірка чи є токени ДО першого рендеру ──
+function hasStoredSession(): boolean {
+  if (typeof window === 'undefined') return false;
+  return !!(
+    localStorage.getItem(ACCESS_TOKEN_KEY) &&
+    localStorage.getItem(REFRESH_TOKEN_KEY)
+  );
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
 
   // ── Отримати профіль ──
   const fetchMe = useCallback(async (token: string) => {
@@ -41,89 +53,84 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await fetch(`${getApiUrl()}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       if (res.status === 401) {
-        setUser(null);
-        setAccessToken(null);
-        return;
+        clearTokens();
+        return false;
       }
-
       const json = await res.json();
       if (json.ok) {
         setUser(json.data);
-      }
-      // При інших помилках НЕ скидаємо токени
-    } catch {
-      // Мережева помилка — не скидаємо токени
-      console.error("fetchMe network error");
-    }
-  }, []);
-
-  // ── Оновити токен ──
-  const refreshToken = useCallback(async (): Promise<boolean> => {
-    try {
-      const res = await fetch(`${getApiUrl()}/api/auth/refresh`, {
-        method: "POST",
-        credentials: "include", // відправляємо cookie
-      });
-      const json = await res.json();
-      if (json.ok && json.data.accessToken) {
-        setAccessToken(json.data.accessToken);
-        await fetchMe(json.data.accessToken);
         return true;
       }
     } catch {}
     return false;
-  }, [fetchMe]);
+  }, []);
 
-  const REFRESH_TOKEN_KEY = "fm_refresh_token";
-  const ACCESS_TOKEN_KEY = "fm_access_token";
-
-  // ── Безпечні функції для роботи з localStorage ──
-  function getStoredToken(key: string): string | null {
-    if (typeof window === "undefined") return null;
-    return localStorage.getItem(key);
-  }
-
-  function setStoredToken(key: string, value: string): void {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(key, value);
-  }
-
-  function removeStoredToken(key: string): void {
-    if (typeof window === "undefined") return;
-    localStorage.removeItem(key);
-  }
-
-  // ── Зберегти токени ──
   function saveTokens(access: string, refresh: string) {
-    setStoredToken(ACCESS_TOKEN_KEY, access);
-    setStoredToken(REFRESH_TOKEN_KEY, refresh);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(ACCESS_TOKEN_KEY, access);
+      localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
+    }
     setAccessToken(access);
   }
 
-  // ── Очистити токени ──
   function clearTokens() {
-    removeStoredToken(ACCESS_TOKEN_KEY);
-    removeStoredToken(REFRESH_TOKEN_KEY);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
+    }
     setAccessToken(null);
     setUser(null);
   }
 
+  // ── Оновити токен ──
+  const refreshToken = useCallback(async (): Promise<boolean> => {
+    try {
+      const storedRefresh = typeof window !== 'undefined'
+        ? localStorage.getItem(REFRESH_TOKEN_KEY)
+        : null;
+      if (!storedRefresh) return false;
+
+      const res = await fetch(`${getApiUrl()}/api/auth/refresh`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ refreshToken: storedRefresh }),
+      });
+
+      if (!res.ok) { clearTokens(); return false; }
+
+      const json = await res.json();
+      if (json.ok && json.data?.accessToken && json.data?.refreshToken) {
+        saveTokens(json.data.accessToken, json.data.refreshToken);
+        await fetchMe(json.data.accessToken);
+        return true;
+      }
+    } catch {}
+    clearTokens();
+    return false;
+  }, [fetchMe]);
+
   // ── Ініціалізація ──
   useEffect(() => {
-    // useEffect завжди виконується тільки в браузері
-    const storedAccess = getStoredToken(ACCESS_TOKEN_KEY);
-    const storedRefresh = getStoredToken(REFRESH_TOKEN_KEY);
+    async function init() {
+      const storedAccess  = localStorage.getItem(ACCESS_TOKEN_KEY);
+      const storedRefresh = localStorage.getItem(REFRESH_TOKEN_KEY);
 
-    if (storedAccess && storedRefresh) {
-      setAccessToken(storedAccess);
-      fetchMe(storedAccess).finally(() => setLoading(false));
-    } else if (storedRefresh) {
-      refreshToken().finally(() => setLoading(false));
-    } else {
+      if (storedAccess && storedRefresh) {
+        setAccessToken(storedAccess);
+        // Спробуємо з access токеном
+        const ok = await fetchMe(storedAccess);
+        if (!ok) {
+          // Access протух — пробуємо refresh
+          await refreshToken();
+        }
+      }
+      // Завершуємо ініціалізацію
       setLoading(false);
+      setInitialized(true);
     }
+
+    init();
   }, []);
 
   // ── Авто-оновлення токена кожні 14 хвилин ──
@@ -133,65 +140,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, [accessToken, refreshToken]);
 
-  // ── Логін ──
-  const login = useCallback(
-    async (email: string, password: string) => {
-      const res = await fetch(`${getApiUrl()}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ email, password }),
-      });
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error);
+  const login = useCallback(async (email: string, password: string) => {
+    const res  = await fetch(`${getApiUrl()}/api/auth/login`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, password }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error);
+    saveTokens(json.data.accessToken, json.data.refreshToken);
+    await fetchMe(json.data.accessToken);
+  }, [fetchMe]);
 
-      setAccessToken(json.data.accessToken);
-      await fetchMe(json.data.accessToken);
-    },
-    [fetchMe],
-  );
+  const register = useCallback(async (email: string, password: string, name?: string) => {
+    const res  = await fetch(`${getApiUrl()}/api/auth/register`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, password, name }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error);
+    saveTokens(json.data.accessToken, json.data.refreshToken);
+    await fetchMe(json.data.accessToken);
+  }, [fetchMe]);
 
-  // ── Реєстрація ──
-  const register = useCallback(
-    async (email: string, password: string, name?: string) => {
-      const res = await fetch(`${getApiUrl()}/api/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ email, password, name }),
-      });
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error);
-
-      setAccessToken(json.data.accessToken);
-      await fetchMe(json.data.accessToken);
-    },
-    [fetchMe],
-  );
-
-  // ── Логаут ──
   const logout = useCallback(async () => {
+    const storedRefresh = typeof window !== 'undefined'
+      ? localStorage.getItem(REFRESH_TOKEN_KEY)
+      : null;
+
     await fetch(`${getApiUrl()}/api/auth/logout`, {
-      method: "POST",
-      credentials: "include",
+      method:  'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      body: JSON.stringify({ refreshToken: storedRefresh }),
     }).catch(console.error);
 
-    setUser(null);
-    setAccessToken(null);
-  }, []);
+    clearTokens();
+  }, [accessToken]);
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        accessToken,
-        loading,
-        login,
-        register,
-        logout,
-        refreshToken,
-      }}
-    >
+    <AuthContext.Provider value={{
+      user, accessToken, loading,
+      login, register, logout, refreshToken,
+    }}>
       {children}
     </AuthContext.Provider>
   );

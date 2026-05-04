@@ -11,22 +11,21 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname    = usePathname();
   const redirecting = useRef(false);
 
+  const isPublic = PUBLIC_PATHS.some(p => pathname.startsWith(p));
+
   useEffect(() => {
-    if (loading) return;
+    if (loading) return;    // чекаємо ініціалізації
+    if (isPublic) return;   // публічні сторінки пропускаємо
 
-    const isPublic = PUBLIC_PATHS.some(p => pathname.startsWith(p));
-    if (isPublic) return;
-
-    // Редиректимо тільки якщо немає ні юзера ні токена
     if (!user && !accessToken && !redirecting.current) {
       redirecting.current = true;
       router.replace(`/login?from=${encodeURIComponent(pathname)}`);
     }
 
     if (user) redirecting.current = false;
-  }, [user, loading, accessToken, router, pathname]);
+  }, [user, loading, accessToken, router, pathname, isPublic]);
 
-  // Показуємо спінер поки перевіряємо токен
+  // ── Показуємо спінер поки йде ініціалізація ──
   if (loading) {
     return (
       <div className="min-h-screen bg-bg flex items-center justify-center">
@@ -38,9 +37,12 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Є токен або юзер — показуємо контент
+  // ── Публічні сторінки — завжди показуємо ──
+  if (isPublic) return <>{children}</>;
+
+  // ── Є токен або юзер — показуємо контент ──
   if (accessToken || user) return <>{children}</>;
 
-  // Немає нічого — нічого не рендеримо (іде редирект)
+  // ── Немає нічого — нічого не рендеримо ──
   return null;
 }
