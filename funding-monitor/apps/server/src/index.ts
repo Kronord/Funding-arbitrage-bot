@@ -13,7 +13,7 @@ import { startMonitor } from "./jobs/monitor";
 import { cleanExpiredSessions } from "./db/auth";
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3001;
+const port = process.env.PORT || 3000;
 
 // ── Security headers ──
 app.use(helmet());
@@ -70,4 +70,6 @@ setInterval(
 
 startMonitor();
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server: http://localhost:${PORT}`));
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Server running on port ${port}`);
+});
