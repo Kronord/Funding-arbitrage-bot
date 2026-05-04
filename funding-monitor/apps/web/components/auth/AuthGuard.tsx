@@ -7,30 +7,26 @@ const PUBLIC_PATHS = ['/login', '/register', '/auth/callback'];
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading, accessToken } = useAuth();
-  const router   = useRouter();
-  const pathname = usePathname();
+  const router      = useRouter();
+  const pathname    = usePathname();
   const redirecting = useRef(false);
 
   useEffect(() => {
-    // Чекаємо поки завантаження завершиться
     if (loading) return;
 
-    // Якщо немає юзера і токена — редирект
+    const isPublic = PUBLIC_PATHS.some(p => pathname.startsWith(p));
+    if (isPublic) return;
+
+    // Редиректимо тільки якщо немає ні юзера ні токена
     if (!user && !accessToken && !redirecting.current) {
-      const isPublic = PUBLIC_PATHS.some(p => pathname.startsWith(p));
-      if (!isPublic) {
-        redirecting.current = true;
-        router.replace(`/login?from=${encodeURIComponent(pathname)}`);
-      }
+      redirecting.current = true;
+      router.replace(`/login?from=${encodeURIComponent(pathname)}`);
     }
 
-    // Якщо юзер є — скидаємо флаг
-    if (user) {
-      redirecting.current = false;
-    }
+    if (user) redirecting.current = false;
   }, [user, loading, accessToken, router, pathname]);
 
-  // Показуємо спінер поки перевіряємо авторизацію
+  // Показуємо спінер поки перевіряємо токен
   if (loading) {
     return (
       <div className="min-h-screen bg-bg flex items-center justify-center">
@@ -42,9 +38,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Якщо немає юзера — нічого не рендеримо (іде редирект)
-  if (!user && !accessToken) return null;
+  // Є токен або юзер — показуємо контент
+  if (accessToken || user) return <>{children}</>;
 
-  // Рендеримо дітей навіть якщо сторінка 404
-  return <>{children}</>;
+  // Немає нічого — нічого не рендеримо (іде редирект)
+  return null;
 }
