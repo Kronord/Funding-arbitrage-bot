@@ -7,9 +7,5 @@ export async function getFunding() {
 }
 
 export function getApiUrl(): string {
-  // Codespaces
-  if (typeof window !== 'undefined' && window.location.hostname.includes('app.github.dev')) {
-    return window.location.origin.replace(/\-\d+\./, '-3001.');
-  }
   return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 }

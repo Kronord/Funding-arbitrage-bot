@@ -154,8 +154,8 @@ export async function calcSpread(
   spotEntryPrice: number,
   futEntryPrice: number,
   orderSize: number,
-  accessToken: string
 ): Promise<CalcResult | null> {
+  const { accessToken, refreshToken } = useAuth();
   try {
     const res = await fetch(`${getApiUrl()}/api/funding/${coin}/calc`, {
       method: 'POST',

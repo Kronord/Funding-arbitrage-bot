@@ -15,6 +15,9 @@ import { cleanExpiredSessions } from "./db/auth";
 const app = express();
 const port = Number(process.env.PORT) || 3000;
 
+console.log("✅ Server script started");
+console.log("PORT from env:", process.env.PORT);
+console.log("NODE_ENV:", process.env.NODE_ENV);
 // ── Security headers ──
 app.use(helmet());
 app.set("trust proxy", 1);
@@ -70,6 +73,4 @@ setInterval(
 
 startMonitor();
 
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Server running on port ${port}`);
-});
+app.listen(port, () => console.log(`🚀 Server: http://localhost:${port}`));
