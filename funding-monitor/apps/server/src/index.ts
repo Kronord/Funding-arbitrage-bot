@@ -34,7 +34,7 @@ app.use(cors({
     const isVercel = origin.endsWith('.vercel.app');
 
     // Дозволяємо твій конкретний Vercel проект
-    const isYourProject = origin.includes('funding-monitor');
+    const isYourProject = origin.includes('funding-arbitrage');
 
     if (allowed.includes(origin) || isVercel && isYourProject) {
       callback(null, true);
