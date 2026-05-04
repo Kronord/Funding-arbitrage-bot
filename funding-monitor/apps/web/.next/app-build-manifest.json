@@ -1,80 +1,25 @@
 {
   "pages": {
-    "/_not-found/page": [
-      "static/chunks/webpack-9d5737d94fc1bdff.js",
-      "static/chunks/fd9d1056-a8aa5b2c67b9c062.js",
-      "static/chunks/23-282efb239633f22d.js",
-      "static/chunks/main-app-216a34e5696bb7c3.js",
-      "static/chunks/app/_not-found/page-d582795957159f5e.js"
-    ],
-    "/layout": [
-      "static/chunks/webpack-9d5737d94fc1bdff.js",
-      "static/chunks/fd9d1056-a8aa5b2c67b9c062.js",
-      "static/chunks/23-282efb239633f22d.js",
-      "static/chunks/main-app-216a34e5696bb7c3.js",
-      "static/css/aacfff1bc7fb7428.css",
-      "static/chunks/app/layout-2c40ff3fa8f851b8.js"
-    ],
-    "/(auth)/register/page": [
-      "static/chunks/webpack-9d5737d94fc1bdff.js",
-      "static/chunks/fd9d1056-a8aa5b2c67b9c062.js",
-      "static/chunks/23-282efb239633f22d.js",
-      "static/chunks/main-app-216a34e5696bb7c3.js",
-      "static/chunks/349-435cb25e17f7808c.js",
-      "static/chunks/app/(auth)/register/page-32fc6623466ac3ca.js"
-    ],
-    "/page": [
-      "static/chunks/webpack-9d5737d94fc1bdff.js",
-      "static/chunks/fd9d1056-a8aa5b2c67b9c062.js",
-      "static/chunks/23-282efb239633f22d.js",
-      "static/chunks/main-app-216a34e5696bb7c3.js",
-      "static/chunks/app/page-ffc06cd4473239c6.js"
-    ],
-    "/(auth)/login/page": [
-      "static/chunks/webpack-9d5737d94fc1bdff.js",
-      "static/chunks/fd9d1056-a8aa5b2c67b9c062.js",
-      "static/chunks/23-282efb239633f22d.js",
-      "static/chunks/main-app-216a34e5696bb7c3.js",
-      "static/chunks/349-435cb25e17f7808c.js",
-      "static/chunks/app/(auth)/login/page-acff05da3dba3144.js"
-    ],
-    "/(auth)/auth/callback/page": [
-      "static/chunks/webpack-9d5737d94fc1bdff.js",
-      "static/chunks/fd9d1056-a8aa5b2c67b9c062.js",
-      "static/chunks/23-282efb239633f22d.js",
-      "static/chunks/main-app-216a34e5696bb7c3.js",
-      "static/chunks/app/(auth)/auth/callback/page-1df447cd13e427ea.js"
-    ],
-    "/(app)/coin/[symbol]/page": [
-      "static/chunks/webpack-9d5737d94fc1bdff.js",
-      "static/chunks/fd9d1056-a8aa5b2c67b9c062.js",
-      "static/chunks/23-282efb239633f22d.js",
-      "static/chunks/main-app-216a34e5696bb7c3.js",
-      "static/chunks/349-435cb25e17f7808c.js",
-      "static/chunks/817-7c0f00a2afeb1c5a.js",
-      "static/chunks/app/(app)/coin/[symbol]/page-a5d079b2478adba4.js"
+    "/(app)/dashboard/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(app)/dashboard/page.js"
     ],
     "/(app)/layout": [
-      "static/chunks/webpack-9d5737d94fc1bdff.js",
-      "static/chunks/fd9d1056-a8aa5b2c67b9c062.js",
-      "static/chunks/23-282efb239633f22d.js",
-      "static/chunks/main-app-216a34e5696bb7c3.js",
-      "static/chunks/349-435cb25e17f7808c.js",
-      "static/chunks/app/(app)/layout-fd4a23b88b9b4e1c.js"
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(app)/layout.js"
     ],
-    "/(app)/dashboard/page": [
-      "static/chunks/webpack-9d5737d94fc1bdff.js",
-      "static/chunks/fd9d1056-a8aa5b2c67b9c062.js",
-      "static/chunks/23-282efb239633f22d.js",
-      "static/chunks/main-app-216a34e5696bb7c3.js",
-      "static/chunks/app/(app)/dashboard/page-9da820afc3bd2ef7.js"
+    "/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/css-app_globals_css.css",
+      "static/chunks/app/layout.js"
     ],
-    "/(app)/profile/page": [
-      "static/chunks/webpack-9d5737d94fc1bdff.js",
-      "static/chunks/fd9d1056-a8aa5b2c67b9c062.js",
-      "static/chunks/23-282efb239633f22d.js",
-      "static/chunks/main-app-216a34e5696bb7c3.js",
-      "static/chunks/app/(app)/profile/page-8a1d63962ac40369.js"
+    "/(auth)/login/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(auth)/login/page.js"
     ]
   }
 }

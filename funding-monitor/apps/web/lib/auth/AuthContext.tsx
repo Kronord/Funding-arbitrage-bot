@@ -157,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const json = await res.json();
     if (!json.ok) throw new Error(json.error);
     saveTokens(json.data.accessToken, json.data.refreshToken);
+    console.log('Refresh відповідь:', json);
     await fetchMe(json.data.accessToken);
   }, [fetchMe]);
 

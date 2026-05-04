@@ -45,7 +45,7 @@ function sendTokens(res: Response, accessToken: string, refreshToken: string) {
 
   return res.json({
     ok: true,
-    data: { accessToken },
+    data: { accessToken, refreshToken },
   });
 }
 

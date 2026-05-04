@@ -1,10 +1,4 @@
 {
-  "/_not-found/page": "app/_not-found/page.js",
-  "/(auth)/register/page": "app/(auth)/register/page.js",
-  "/page": "app/page.js",
   "/(auth)/login/page": "app/(auth)/login/page.js",
-  "/(auth)/auth/callback/page": "app/(auth)/auth/callback/page.js",
-  "/(app)/coin/[symbol]/page": "app/(app)/coin/[symbol]/page.js",
-  "/(app)/dashboard/page": "app/(app)/dashboard/page.js",
-  "/(app)/profile/page": "app/(app)/profile/page.js"
+  "/(app)/dashboard/page": "app/(app)/dashboard/page.js"
 }
