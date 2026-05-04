@@ -19,26 +19,31 @@ const port = Number(process.env.PORT) || 3000;
 app.use(helmet());
 app.set("trust proxy", 1);
 // ── CORS ──
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      const allowedOrigins = [
-        "https://funding-arbitrage-nmxda1906-kronords-projects.vercel.app",
-        "http://localhost:3000",
-        "http://localhost:3001",
-      ];
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
 
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
-  })
-);
+    const allowed = [
+      // Production домен
+      process.env.FRONTEND_URL,
+      // Localhost для розробки
+      'http://localhost:3000',
+    ];
+
+    // Дозволяємо всі Vercel preview deployments
+    const isVercel = origin.endsWith('.vercel.app');
+
+    // Дозволяємо твій конкретний Vercel проект
+    const isYourProject = origin.includes('funding-monitor');
+
+    if (allowed.includes(origin) || isVercel && isYourProject) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+}));
 
 app.options("*", cors());
 
