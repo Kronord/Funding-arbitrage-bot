@@ -15,9 +15,6 @@ import { cleanExpiredSessions } from "./db/auth";
 const app = express();
 const port = Number(process.env.PORT) || 3000;
 
-console.log("✅ Server script started");
-console.log("PORT from env:", process.env.PORT);
-console.log("NODE_ENV:", process.env.NODE_ENV);
 // ── Security headers ──
 app.use(helmet());
 app.set("trust proxy", 1);
@@ -25,24 +22,25 @@ app.set("trust proxy", 1);
 app.use(
   cors({
     origin: (origin, callback) => {
-      const allowed = [
-        process.env.FRONTEND_URL || "http://localhost:3000",
+      const allowedOrigins = [
+        "https://funding-arbitrage-nmxda1906-kronords-projects.vercel.app",
         "http://localhost:3000",
+        "http://localhost:3001",
       ];
-      // Дозволяємо Codespaces домени
-      if (
-        !origin ||
-        allowed.includes(origin) ||
-        origin.includes("app.github.dev")
-      ) {
+
+      if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS"));
       }
     },
     credentials: true,
-  }),
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+  })
 );
+
+app.options("*", cors());
 
 app.use(express.json());
 app.use(cookieParser());
