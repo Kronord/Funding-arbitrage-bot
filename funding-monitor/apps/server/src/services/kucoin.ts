@@ -170,7 +170,7 @@ export async function fetchKucoinFunding(
     });
   });
 
-  const top40 = candidates.sort((a, b) => b.funding - a.funding);
+  const top40 = candidates.sort((a, b) => b.funding - a.funding).slice(0, 100);
   const books = await Promise.all(
     top40.map((c) => getOrderBook(c.spotSymbol, c.futSymbol)),
   );
