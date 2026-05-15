@@ -55,6 +55,8 @@ export async function getLatestSnapshot() {
       nextFundingTime: p.nextFundingTime,
       minutesUntil: p.minutesUntil,
       basisReal: p.basisReal,
+      basisEntry: p.basisEntry ?? p.basisReal,
+      basisExit: p.basisExit ?? null,          
       net: p.net,
       avgSpotBuy: p.avgSpotBuy,
       avgFutSell: p.avgFutSell,
