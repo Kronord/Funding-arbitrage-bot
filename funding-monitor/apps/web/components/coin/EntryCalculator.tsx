@@ -119,7 +119,6 @@ export default function EntryCalculator({
               label: "Avg Ф'юч (bid)",
               value: <Val v={result.avgFutBid} suffix="" />,
             },
-            { label: "Спред (стакан)", value: <Val v={result.basisReal} /> },
             { label: "Спред (вхід)", value: <Val v={result.basisEntry} /> },
             { label: "Чистий (вхід)", value: <Val v={result.netEntry} /> },
           ].map((s) => (

@@ -18,7 +18,10 @@ export async function sendTelegramReport(pairs: FundingPair[], now: string) {
     msg += `*${i + 1}\\. ${p.coin}*\n`;
     msg += `💸 Фандинг: \`${escape(p.funding)}%\` \\| ⏱ ${escape(p.intervalHours)}г\n`;
     msg += `🕐 Виплата: ${p.nextFundingTime ?? "—"} \\(через ${p.minutesUntil} хв\\)\n`;
-    msg += `📈 Спред: \`${escape(p.basisReal)}%\`\n`;
+    msg += `📈 Базис входу: \`${escape(p.basisEntry)}%\`\n`;
+    if (p.basisExit !== null) {
+      msg += `📉 Базис виходу: \`${escape(p.basisExit)}%\`\n`;
+    }
     msg += `${emoji} Чистий: \`${escape(p.net)}%\`\n\n`;
   });
 

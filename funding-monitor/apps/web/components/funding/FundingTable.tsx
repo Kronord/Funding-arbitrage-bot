@@ -7,7 +7,7 @@ import type { FundingPair } from "@funding-monitor/types";
 
 type SortKey = keyof Pick<
   FundingPair,
-  "funding" | "basisReal" | "net" | "intervalHours"
+  "funding" | "basisEntry" | "net" | "intervalHours"
 >;
 
 function getCountdown(ts: number | null): string {
@@ -79,92 +79,89 @@ export default function FundingTable() {
 
   return (
     <>
-    {loadingCoin && (
-        <CoinLoader
-          coin={loadingCoin}
-          onCancel={() => setLoadingCoin(null)}
-        />
+      {loadingCoin && (
+        <CoinLoader coin={loadingCoin} onCancel={() => setLoadingCoin(null)} />
       )}
-    <div className="border border-border-bright rounded-lg overflow-hidden overflow-x-auto">
-      <table className="w-full border-collapse text-sm min-w-[860px]">
-        <thead>
-          <tr className="bg-surface border-b border-border-bright">
-            <Th label="#" />
-            <Th label="Монета" />
-            <Th k="funding" label="Фандинг" />
-            <Th k="intervalHours" label="Частота" />
-            <Th label="Наступна виплата" />
-            <Th k="basisReal" label="Спред" />
-            <Th k="net" label="Чистий" />
-            <Th label="Avg Спот" />
-            <Th label="Avg Ф'юч" />
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((p, i) => {
-            const urgent = (p.minutesUntil ?? 999) <= 15;
-            return (
-              <tr
-                key={p.coin}
-                className="border-b border-border hover:bg-white/[0.02] transition-colors"
-              >
-                <td className="px-4 py-2.5 font-mono text-[11px] text-text-dim">
-                  {i + 1}
-                </td>
-                <td className="px-4 py-2.5">
-                  <button
-                    onClick={() => setLoadingCoin(p.coin)}
-                    className="font-mono font-bold text-[14px] text-[#cdd9e5] hover:text-blue transition-colors cursor-pointer"
-                  >
-                    {p.coin}
-                  </button>
-                </td>
-                <td className="px-4 py-2.5">
-                  <Val v={p.funding} />
-                </td>
-                <td className="px-4 py-2.5">
-                  <span className="inline-flex items-center gap-1 bg-blue/10 border border-blue/20 text-blue px-2 py-0.5 rounded text-[11px] font-mono font-semibold">
-                    ⏱ {p.intervalHours}г
-                  </span>
-                </td>
-                <td className="px-4 py-2.5">
-                  <div className="font-mono text-xs text-[#cdd9e5]">
-                    {p.nextFundingTime ?? "—"}
-                  </div>
-                  <div
-                    className={`text-[11px] font-mono mt-0.5 ${urgent ? "text-red" : "text-yellow"}`}
-                  >
-                    через {getCountdown(p.nextFundingTs)}
-                  </div>
-                </td>
-                <td className="px-4 py-2.5">
-                  <Val v={p.basisReal} />
-                </td>
-                <td className="px-4 py-2.5">
-                  <span
-                    className={`inline-block px-2 py-0.5 rounded text-[11px] font-mono font-bold border
+      <div className="border border-border-bright rounded-lg overflow-hidden overflow-x-auto">
+        <table className="w-full border-collapse text-sm min-w-[860px]">
+          <thead>
+            <tr className="bg-surface border-b border-border-bright">
+              <Th label="#" />
+              <Th label="Монета" />
+              <Th k="funding" label="Фандинг" />
+              <Th k="intervalHours" label="Частота" />
+              <Th label="Наступна виплата" />
+              <Th k="basisEntry" label="Базис входу" />
+              <Th label="Базис виходу" />
+              <Th k="net" label="Чистий" />
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((p, i) => {
+              const urgent = (p.minutesUntil ?? 999) <= 15;
+              return (
+                <tr
+                  key={p.coin}
+                  className="border-b border-border hover:bg-white/[0.02] transition-colors"
+                >
+                  <td className="px-4 py-2.5 font-mono text-[11px] text-text-dim">
+                    {i + 1}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <button
+                      onClick={() => setLoadingCoin(p.coin)}
+                      className="font-mono font-bold text-[14px] text-[#cdd9e5] hover:text-blue transition-colors cursor-pointer"
+                    >
+                      {p.coin}
+                    </button>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <Val v={p.funding} />
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <span className="inline-flex items-center gap-1 bg-blue/10 border border-blue/20 text-blue px-2 py-0.5 rounded text-[11px] font-mono font-semibold">
+                      ⏱ {p.intervalHours}г
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <div className="font-mono text-xs text-[#cdd9e5]">
+                      {p.nextFundingTime ?? "—"}
+                    </div>
+                    <div
+                      className={`text-[11px] font-mono mt-0.5 ${urgent ? "text-red" : "text-yellow"}`}
+                    >
+                      через {getCountdown(p.nextFundingTs)}
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <Val v={p.basisEntry} />
+                  </td>
+                  <td className="px-4 py-2.5">
+                    {p.basisExit !== null ? (
+                      <Val v={p.basisExit} />
+                    ) : (
+                      <span className="text-text-dim font-mono text-xs">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded text-[11px] font-mono font-bold border
                     ${
                       p.net > 0
                         ? "bg-green/10 text-green border-green/20"
                         : "bg-red/10 text-red border-red/20"
                     }`}
-                  >
-                    {p.net > 0 ? "+" : ""}
-                    {p.net}%
-                  </span>
-                </td>
-                <td className="px-4 py-2.5 font-mono text-[11px] text-text-muted">
-                  {p.avgSpotBuy}
-                </td>
-                <td className="px-4 py-2.5 font-mono text-[11px] text-text-muted">
-                  {p.avgFutSell}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+                    >
+                      {p.net > 0 ? "+" : ""}
+                      {p.net}%
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }

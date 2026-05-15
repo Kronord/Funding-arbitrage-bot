@@ -31,6 +31,8 @@ model FundingPair {
   nextFundingTime String?
   minutesUntil    Int?
   basisReal       Float
+  basisEntry      Float?
+  basisExit       Float?
   net             Float
   avgSpotBuy      String
   avgFutSell      String

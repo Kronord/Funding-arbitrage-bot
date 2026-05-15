@@ -1,19 +1,24 @@
+import { deprecate } from "util";
+
 // ── Біржі ──
 export type Exchange = "kucoin" | "binance" | "bybit";
 
 // ── Пара фандингу ──
 export interface FundingPair {
-  coin: string;
-  exchange: Exchange;
-  funding: number;
-  intervalHours: number;
+  coin:            string;
+  exchange:        Exchange;
+  funding:         number;
+  intervalHours:   number;
   nextFundingTime: string | null;
-  nextFundingTs: number | null;
-  minutesUntil: number | null;
-  basisReal: number;
-  net: number;
-  avgSpotBuy: string;
-  avgFutSell: string;
+  nextFundingTs:   number | null;
+  minutesUntil:    number | null;      
+  basisEntry:      number;       
+  basisExit:       number | null; 
+  net:             number;
+  avgSpotBuy:      string;
+  avgFutSell:      string;
+  /** @deprecated використовуй basisEntry */
+  basisReal:       number;
 }
 
 // ── Звіт ──

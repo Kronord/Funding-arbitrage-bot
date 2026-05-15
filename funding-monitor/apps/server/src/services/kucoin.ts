@@ -181,16 +181,29 @@ export async function fetchKucoinFunding(
     if (!ob) return;
 
     const futMult = c.is1000 ? 1000 : 1;
-    const avgSpotBuy = getAvgFillPrice(ob.asks, orderSize, 1);
-    const avgFutSell = getAvgFillPrice(
+    const avgSpotAsk = getAvgFillPrice(ob.asks, orderSize, 1);
+    const avgFutBid = getAvgFillPrice(
       ob.bids,
       orderSize,
       c.multiplier / futMult,
     );
-    if (!avgSpotBuy || !avgFutSell) return;
 
-    const basisReal = ((avgFutSell - avgSpotBuy) / avgSpotBuy) * 100;
-    const net = c.funding + basisReal - TOTAL_FEE * 100;
+    const avgSpotBid = getAvgFillPrice(ob.bids, orderSize, 1);
+    const avgFutAsk = getAvgFillPrice(
+      ob.asks,
+      orderSize,
+      c.multiplier / futMult,
+    );
+
+    if (!avgSpotAsk || !avgFutBid) return;
+
+    const basisEntry = ((avgFutBid - avgSpotAsk) / avgSpotAsk) * 100;
+    const basisExit =
+      avgSpotBid && avgFutAsk
+        ? ((avgSpotBid - avgFutAsk) / avgFutAsk) * 100
+        : null;
+
+    const net = c.funding + basisEntry - TOTAL_FEE * 100;
 
     pairs.push({
       coin: c.coin,
@@ -200,10 +213,12 @@ export async function fetchKucoinFunding(
       nextFundingTime: c.nextFundingTime,
       nextFundingTs: c.nextFundingTs,
       minutesUntil: c.minutesUntil,
-      basisReal: parseFloat(basisReal.toFixed(3)),
+      basisReal: parseFloat(basisEntry.toFixed(3)),
+      basisEntry: parseFloat(basisEntry.toFixed(3)),
+      basisExit: basisExit !== null ? parseFloat(basisExit.toFixed(3)) : null,
       net: parseFloat(net.toFixed(3)),
-      avgSpotBuy: avgSpotBuy.toFixed(6),
-      avgFutSell: avgFutSell.toFixed(6),
+      avgSpotBuy: avgSpotAsk.toFixed(6),
+      avgFutSell: avgFutBid.toFixed(6),
     });
   });
 
@@ -418,37 +433,34 @@ export async function fetchPriceChartBatch(
   const to = Math.floor(Date.now() / 1000);
   const from = to - days * 24 * 60 * 60;
 
-  const results = await chunkedSettled(
-    coins,
-    async (coin) => {
-      const futSymbol = coin === "BTC" ? "XBTUSDTM" : `${coin}USDTM`;
-      const alt1000 = `1000${coin}USDTM`;
+  const results = await chunkedSettled(coins, async (coin) => {
+    const futSymbol = coin === "BTC" ? "XBTUSDTM" : `${coin}USDTM`;
+    const alt1000 = `1000${coin}USDTM`;
 
-      let res;
-      try {
-        res = await axios.get(
-          `https://api-futures.kucoin.com/api/v1/kline/query?symbol=${futSymbol}&granularity=${granularity}&from=${from * 1000}&to=${to * 1000}`,
-        );
-      } catch {
-        res = await axios.get(
-          `https://api-futures.kucoin.com/api/v1/kline/query?symbol=${alt1000}&granularity=${granularity}&from=${from * 1000}&to=${to * 1000}`,
-        );
-      }
+    let res;
+    try {
+      res = await axios.get(
+        `https://api-futures.kucoin.com/api/v1/kline/query?symbol=${futSymbol}&granularity=${granularity}&from=${from * 1000}&to=${to * 1000}`,
+      );
+    } catch {
+      res = await axios.get(
+        `https://api-futures.kucoin.com/api/v1/kline/query?symbol=${alt1000}&granularity=${granularity}&from=${from * 1000}&to=${to * 1000}`,
+      );
+    }
 
-      const raw = res.data.data as number[][];
-      return {
-        coin,
-        klines: raw.map((k) => ({
-          time: k[0],
-          open: k[1],
-          high: k[2],
-          low: k[3],
-          close: k[4],
-          volume: k[5],
-        })),
-      };
-    },
-  );
+    const raw = res.data.data as number[][];
+    return {
+      coin,
+      klines: raw.map((k) => ({
+        time: k[0],
+        open: k[1],
+        high: k[2],
+        low: k[3],
+        close: k[4],
+        volume: k[5],
+      })),
+    };
+  });
 
   const out: Record<string, any[]> = {};
   for (const r of results) {
