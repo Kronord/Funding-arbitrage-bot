@@ -1,6 +1,11 @@
 import prisma from "./client";
 import type { FundingPair as FundingPairType } from "@funding-monitor/types";
 
+const SPOT_FEE  = parseFloat(process.env.SPOT_FEE  || '0.001');
+const FUT_FEE   = parseFloat(process.env.FUT_FEE   || '0.0006');
+const TOTAL_FEE = (SPOT_FEE + FUT_FEE) * 2;
+const ORDER_SIZE = parseFloat(process.env.ORDER_SIZE_USDT || '100');
+
 // ── Зберегти новий знімок фандингу ──
 export async function saveFundingSnapshot(
   pairs: FundingPairType[],
@@ -64,39 +69,89 @@ export async function getLatestSnapshot() {
   };
 }
 
-// ── Зберегти/оновити деталі контракту ──
+function getAvgFillPrice(
+  orders: [string, string][],
+  usdtAmount: number,
+  multiplier = 1
+): number | null {
+  let remaining = usdtAmount;
+  let totalCoins = 0;
+  let totalUsdt = 0;
+
+  for (const [priceStr, sizeStr] of orders) {
+    const price = parseFloat(priceStr);
+    const size  = parseFloat(sizeStr) * multiplier;
+    const levelUsdt = price * size;
+    if (remaining <= 0) break;
+
+    if (levelUsdt >= remaining) {
+      totalCoins += remaining / price;
+      totalUsdt  += remaining;
+      remaining   = 0;
+    } else {
+      totalCoins += size;
+      totalUsdt  += levelUsdt;
+      remaining  -= levelUsdt;
+    }
+  }
+  return remaining > 0 ? null : totalUsdt / totalCoins;
+}
+
 export async function saveContractDetail(coin: string, details: any) {
+  // ── Розрахунок базису зі стакану ──
+  let basisEntry: number | null = null;
+  let basisExit:  number | null = null;
+
+  const asks: [string, string][] = details.asks || [];
+  const bids: [string, string][] = details.bids || [];
+
+  if (asks.length > 0 && bids.length > 0) {
+    // Вхід: купуємо спот по asks, шортимо ф'юч по bids
+    const avgSpotAsk = getAvgFillPrice(asks, ORDER_SIZE, 1);
+    const avgFutBid  = getAvgFillPrice(bids, ORDER_SIZE, 1);
+
+    if (avgSpotAsk && avgFutBid) {
+      basisEntry = parseFloat(
+        (((avgFutBid - avgSpotAsk) / avgSpotAsk) * 100).toFixed(3)
+      );
+    }
+
+    // Вихід: продаємо спот по bids, закриваємо ф'юч по asks
+    const avgSpotBid = getAvgFillPrice(bids, ORDER_SIZE, 1);
+    const avgFutAsk  = getAvgFillPrice(asks, ORDER_SIZE, 1);
+
+    if (avgSpotBid && avgFutAsk) {
+      basisExit = parseFloat(
+        (((avgSpotBid - avgFutAsk) / avgFutAsk) * 100).toFixed(3)
+      );
+    }
+  }
+
   const data = {
-    symbol: details.symbol,
-    markPrice: parseFloat(details.markPrice) || 0,
-    indexPrice: parseFloat(details.indexPrice) || 0,
-    funding: details.funding != null ? parseFloat(details.funding) : null,
-    intervalHours: parseFloat(details.intervalHours) || 0,
-    nextFundingTs: details.nextFundingTs
-      ? BigInt(Math.round(details.nextFundingTs))
-      : null,
+    symbol:          details.symbol,
+    markPrice:       parseFloat(details.markPrice)     || 0,
+    indexPrice:      parseFloat(details.indexPrice)    || 0,
+    funding:         details.funding  != null ? parseFloat(details.funding)  : null,
+    intervalHours:   parseFloat(details.intervalHours) || 0,
+    nextFundingTs:   details.nextFundingTs   ? BigInt(Math.round(details.nextFundingTs))   : null,
     nextFundingTime: details.nextFundingTime ?? null,
-    minutesUntil: details.minutesUntil ? parseInt(details.minutesUntil) : null,
-    maxLeverage: details.maxLeverage ? parseFloat(details.maxLeverage) : null,
-    takerFeeRate: details.takerFeeRate
-      ? parseFloat(details.takerFeeRate)
-      : null,
-    makerFeeRate: details.makerFeeRate
-      ? parseFloat(details.makerFeeRate)
-      : null,
-    openInterest: details.openInterest
-      ? parseFloat(details.openInterest)
-      : null,
-    volume24h: details.volume24h ? parseFloat(details.volume24h) : null,
-    turnover24h: details.turnover24h ? parseFloat(details.turnover24h) : null,
-    asksJson: JSON.stringify(details.asks || []),
-    bidsJson: JSON.stringify(details.bids || []),
+    minutesUntil:    details.minutesUntil    ? parseInt(details.minutesUntil)  : null,
+    maxLeverage:     details.maxLeverage     ? parseFloat(details.maxLeverage) : null,
+    takerFeeRate:    details.takerFeeRate    ? parseFloat(details.takerFeeRate): null,
+    makerFeeRate:    details.makerFeeRate    ? parseFloat(details.makerFeeRate): null,
+    openInterest:    details.openInterest    ? parseFloat(details.openInterest): null,
+    volume24h:       details.volume24h       ? parseFloat(details.volume24h)   : null,
+    turnover24h:     details.turnover24h     ? parseFloat(details.turnover24h) : null,
+    asksJson:        JSON.stringify(asks),
+    bidsJson:        JSON.stringify(bids),
+    basisEntry,   // ← новий
+    basisExit,    // ← новий
   };
 
   return prisma.contractDetail.upsert({
-    where: { coin_exchange: { coin, exchange: "kucoin" } },
+    where:  { coin_exchange: { coin, exchange: 'kucoin' } },
     update: data,
-    create: { coin, exchange: "kucoin", ...data },
+    create: { coin, exchange: 'kucoin', ...data },
   });
 }
 

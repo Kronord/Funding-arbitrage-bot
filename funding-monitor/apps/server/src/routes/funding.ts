@@ -1,4 +1,5 @@
 import { Router } from "express";
+import prisma from '../db/client';
 import { lastReport } from "../jobs/monitor";
 import {
   getLatestSnapshot,
@@ -12,6 +13,9 @@ import {
 import { calcSpreadByEntryPrice, fetchCoinDetails, fetchFundingHistory, fetchPriceChart } from "../services/kucoin";
 
 const router = Router();
+const SPOT_FEE  = parseFloat(process.env.SPOT_FEE  || '0.001');
+const FUT_FEE   = parseFloat(process.env.FUT_FEE   || '0.0006');
+const TOTAL_FEE = (SPOT_FEE + FUT_FEE) * 2;
 
 // ── GET /api/funding ── з БД
 router.get("/", async (_, res) => {
@@ -61,24 +65,52 @@ router.get("/summaries", async (req, res) => {
   }
 });
 
-// ── GET /api/funding/top-basis ── Топ монети за базисом
+// ── GET /api/funding/top-basis ──
 router.get('/top-basis', async (req, res) => {
   try {
     const limit = parseInt(String(req.query.limit || '25'));
-    const snapshot = await getLatestSnapshot();
 
-    if (!snapshot) {
+    // Беремо всі монети з ContractDetail
+    const contracts = await prisma.contractDetail.findMany({
+      where: {
+        exchange: 'kucoin',
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    if (!contracts.length) {
       return res.json({ ok: true, data: { pairs: [], updatedAt: null } });
     }
 
-    const topBasis = [...snapshot.pairs]
-      .filter(p => p.basisEntry > 0)
-      .sort((a, b) => b.basisEntry - a.basisEntry)
-      .slice(0, limit);
+    // Беремо останній snapshot для часу оновлення
+    const snapshot = await getLatestSnapshot();
+
+    // Фільтруємо монети з плюсовим базисом
+    const pairs = contracts
+      .filter(c => c.basisEntry !== null && c.basisEntry > 0)
+      .sort((a, b) => (b.basisEntry ?? 0) - (a.basisEntry ?? 0))
+      .slice(0, limit)
+      .map(c => ({
+        coin:            c.coin,
+        exchange:        c.exchange as 'kucoin',
+        funding:         c.funding ?? 0,
+        intervalHours:   c.intervalHours,
+        nextFundingTs:   c.nextFundingTs ? Number(c.nextFundingTs) : null,
+        nextFundingTime: c.nextFundingTime,
+        minutesUntil:    c.minutesUntil,
+        basisReal:       c.basisEntry ?? 0,
+        basisEntry:      c.basisEntry ?? 0,
+        basisExit:       c.basisExit ?? null,
+        net:             c.funding && c.basisEntry
+          ? parseFloat((c.funding + c.basisEntry - (TOTAL_FEE * 100)).toFixed(3))
+          : 0,
+        avgSpotBuy:      '',
+        avgFutSell:      '',
+      }));
 
     res.json({
-      ok: true,
-      data: { pairs: topBasis, updatedAt: snapshot.updatedAt },
+      ok:   true,
+      data: { pairs, updatedAt: snapshot?.updatedAt ?? null },
     });
   } catch (e: any) {
     res.status(500).json({ ok: false, error: e.message });

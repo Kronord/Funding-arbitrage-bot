@@ -80,6 +80,8 @@ model ContractDetail {
   symbol          String
   markPrice       Float
   indexPrice      Float
+  basisEntry      Float?
+  basisExit       Float?
   funding         Float?
   intervalHours   Float
   nextFundingTs   BigInt?
