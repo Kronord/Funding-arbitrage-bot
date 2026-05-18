@@ -226,4 +226,28 @@ router.get("/:coin/full", async (req, res) => {
   }
 });
 
+// ── GET /api/funding/top-basis ── Топ монети за базисом
+router.get('/top-basis', async (req, res) => {
+  try {
+    const limit = parseInt(String(req.query.limit || '25'));
+    const snapshot = await getLatestSnapshot();
+
+    if (!snapshot) {
+      return res.json({ ok: true, data: { pairs: [], updatedAt: null } });
+    }
+
+    const topBasis = [...snapshot.pairs]
+      .filter(p => p.basisEntry > 0)
+      .sort((a, b) => b.basisEntry - a.basisEntry)
+      .slice(0, limit);
+
+    res.json({
+      ok: true,
+      data: { pairs: topBasis, updatedAt: snapshot.updatedAt },
+    });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 export default router;

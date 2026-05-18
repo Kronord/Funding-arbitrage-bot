@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 
 const links = [
   { href: '/dashboard', label: 'Dashboard',     icon: '📊' },
+  { href: '/top-basis',  label: 'Топ базис',    icon: '🎯' },
   { href: '/alerts',    label: 'Алерти',        icon: '🔔' },
   { href: '/history',   label: 'Історія',       icon: '📈' },
   { href: '/settings',  label: 'Налаштування',  icon: '⚙️' },
